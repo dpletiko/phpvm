@@ -62,12 +62,14 @@ fn main() -> Result<()> {
         },
     }
 
+    // TODO: Handle errors > Stuff shouldn't get here if Err before
+    println!("test");
+
     Ok(())
 }
 
-fn list_versions() {
-    println!("Listing installed versions...");
-
+fn get_versions() -> Vec<String> {
+    // TODO: Handle errors > match and stuff > Ok > Err
     let output = {
         let ls = Command::new("ls")
             .arg("-l")
@@ -85,10 +87,20 @@ fn list_versions() {
             .expect("Failed to find versions")
     };
 
-    println!(
-        "Installed versions: {}",
-        String::from_utf8_lossy(&output.stdout)
-    )
+    String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .lines()
+        .map(String::from)
+        .collect()
+}
+
+fn list_versions() {
+    println!("Listing installed versions...");
+
+    println!("Installed versions:");
+    for version in get_versions() {
+       println!("{}", version);
+    }
 }
 
 fn use_composer() {
@@ -102,12 +114,41 @@ fn use_composer() {
 
     if !output.stderr.is_empty() {
         eprintln!("{}", String::from_utf8_lossy(&output.stderr));
+        // TODO: error out!
         return;
     }
 
-    let version = String::from_utf8_lossy(&output.stdout);
+    let version_range = String::from_utf8_lossy(&output.stdout);
+    println!("{}", version_range);
 
-    println!("{}", version);
+    let ranges: Vec<&str> = version_range
+        .trim()
+        .trim_matches(|c| c == '\"')
+        .split(" || ")
+        .collect();
+
+    let mut selected_version: Option<String> = None;
+    for constraint in ranges {
+        for version in get_versions() {
+            // Check if the version matches the constraint
+            if version.starts_with(constraint.trim_start_matches('^')) {
+                // Prioritize this version if it matches the constraint
+                selected_version = Some(version);
+            }
+        }
+    }
+
+    match selected_version {
+        None => {
+            eprintln!("Version not matched!");
+        },
+        Some(v) if !v.is_empty() => {
+            println!("Version matched: {}", v);
+        },
+        Some(_) => {
+            eprintln!("Version not matched!");
+        },
+    }
 }
 
 fn use_version(version: String) {
