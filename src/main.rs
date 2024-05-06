@@ -1,6 +1,7 @@
 use anyhow::{Result, Error, bail};
 use clap::{Parser, Subcommand};
-use std::process::{Command, Stdio};
+use serde_json::Value;
+use std::{fs::File, io::BufReader, process::{Command, Stdio}};
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -106,22 +107,40 @@ fn list_versions() {
 fn use_composer() {
     println!("Using composer...");
 
-    let output = Command::new("jq")
-        .arg(".require.php")
-        .arg("composer.json")
-        .output()
-        .expect("Testing this shit?");
+    // let output = Command::new("jq")
+    //     .arg(".require.php")
+    //     .arg("composer.json")
+    //     .output()
+    //     .expect("Testing this shit?");
+    //
+    // if !output.stderr.is_empty() {
+    //     eprintln!("{}", String::from_utf8_lossy(&output.stderr));
+    //     // TODO: error out!
+    //     return;
+    // }
+    //
+    // let version_range = String::from_utf8_lossy(&output.stdout);
+    // println!("{}", version_range);
 
-    if !output.stderr.is_empty() {
-        eprintln!("{}", String::from_utf8_lossy(&output.stderr));
-        // TODO: error out!
-        return;
-    }
+    let file = match File::open("composer.json") {
+        Ok(file) => file,
+        Err(err) => panic!("Problem opening the file: {:?}", err),
+    };
 
-    let version_range = String::from_utf8_lossy(&output.stdout);
-    println!("{}", version_range);
+    let reader = BufReader::new(file);
+    let composer: Value = match serde_json::from_reader(reader) {
+        Ok(it) => it,
+        Err(err) => panic!("Unable to parse file: {:?}", err)
+    };
 
-    let ranges: Vec<&str> = version_range
+    let version_constraint = match &composer["require"]["php"] {
+        Value::String(v) if !v.is_empty() => v,
+        _ => panic!("PHP Version not found!"),
+    };
+
+    println!("Found version constraint: {:?}", version_constraint);
+
+    let ranges: Vec<&str> = version_constraint
         .trim()
         .trim_matches(|c| c == '\"')
         .split(" || ")
@@ -139,18 +158,14 @@ fn use_composer() {
     }
 
     match selected_version {
-        None => {
-            eprintln!("Version not matched!");
-        },
         Some(v) if !v.is_empty() => {
             println!("Version matched: {}", v);
+            use_version(v)
         },
-        Some(_) => {
-            eprintln!("Version not matched!");
-        },
+        _ => panic!("Version not matched!")
     }
 }
 
 fn use_version(version: String) {
-    println!("{}", version)
+    println!("Using version: {}", version)
 }
