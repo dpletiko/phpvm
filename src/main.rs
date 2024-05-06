@@ -1,4 +1,4 @@
-use anyhow::{Result, Error, bail};
+use anyhow::{Error, Result};
 use clap::{Parser, Subcommand};
 use serde_json::Value;
 use std::{fs::File, io::BufReader, process::{Command, Stdio}};
@@ -62,14 +62,9 @@ fn main() -> Result<()> {
             false => use_version(version.unwrap()),
         },
     }
-
-    // TODO: Handle errors > Stuff shouldn't get here if Err before
-    println!("test");
-
-    Ok(())
 }
 
-fn get_versions() -> Vec<String> {
+fn get_versions() -> Result<Vec<String>> {
     // TODO: Handle errors > match and stuff > Ok > Err
     let output = {
         let ls = Command::new("ls")
@@ -82,29 +77,30 @@ fn get_versions() -> Vec<String> {
             .expect("Failed to capture ls output");
 
         Command::new("awk")
-            .arg(r#"/php/ { sub("php", "", $9); print $9 }"#)
+            .arg(r#"/php[0-9]/ { sub("php", "", $9); print $9 }"#)
             .stdin(ls)
             .output()
             .expect("Failed to find versions")
     };
 
-    String::from_utf8_lossy(&output.stdout)
+    Ok(String::from_utf8_lossy(&output.stdout)
         .trim()
         .lines()
         .map(String::from)
-        .collect()
+        .collect())
 }
 
-fn list_versions() {
+fn list_versions() -> Result<(), Error> {
     println!("Listing installed versions...");
 
-    println!("Installed versions:");
-    for version in get_versions() {
+    for version in get_versions()? {
        println!("{}", version);
     }
+
+    Ok(())
 }
 
-fn use_composer() {
+fn use_composer() -> Result<(), Error> {
     println!("Using composer...");
 
     // let output = Command::new("jq")
@@ -124,18 +120,18 @@ fn use_composer() {
 
     let file = match File::open("composer.json") {
         Ok(file) => file,
-        Err(err) => panic!("Problem opening the file: {:?}", err),
+        Err(err) => return Err(Error::msg(format!("Problem opening the file: {:?}", err)))
     };
 
     let reader = BufReader::new(file);
     let composer: Value = match serde_json::from_reader(reader) {
         Ok(it) => it,
-        Err(err) => panic!("Unable to parse file: {:?}", err)
+        Err(err) => return Err(Error::msg(format!("Unable to parse file: {:?}", err)))
     };
 
     let version_constraint = match &composer["require"]["php"] {
         Value::String(v) if !v.is_empty() => v,
-        _ => panic!("PHP Version not found!"),
+        _ => return Err(Error::msg("PHP Version not found!"))
     };
 
     println!("Found version constraint: {:?}", version_constraint);
@@ -148,7 +144,7 @@ fn use_composer() {
 
     let mut selected_version: Option<String> = None;
     for constraint in ranges {
-        for version in get_versions() {
+        for version in get_versions()? {
             // Check if the version matches the constraint
             if version.starts_with(constraint.trim_start_matches('^')) {
                 // Prioritize this version if it matches the constraint
@@ -162,10 +158,12 @@ fn use_composer() {
             println!("Version matched: {}", v);
             use_version(v)
         },
-        _ => panic!("Version not matched!")
+        _ => Err(Error::msg("Version not matched!"))
     }
 }
 
-fn use_version(version: String) {
-    println!("Using version: {}", version)
+fn use_version(version: String) -> Result<(), Error> {
+    println!("Using version: {}", version);
+
+    Ok(())
 }
