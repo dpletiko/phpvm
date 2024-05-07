@@ -4,6 +4,8 @@ use serde_json::Value;
 use sys_info::LinuxOSReleaseInfo;
 use std::{env::{self, consts}, fs::File, io::BufReader, process::{Command, Stdio}};
 
+mod os;
+
 #[derive(Parser, Debug)]
 #[command(version, about)]
 struct Cli {
@@ -168,75 +170,11 @@ fn use_version(version: String) -> Result<(), Error> {
 
     match consts::OS {
         "linux" => match sys_info::linux_os_release()? {
-            LinuxOSReleaseInfo { id, .. } if id == Some("debian".to_owned()) => debian(version),
+            LinuxOSReleaseInfo { id, .. } if id == Some("debian".to_owned()) => os::linux::debian::use_version(version),
             LinuxOSReleaseInfo { id, .. } => Err(Error::msg(format!("Distro [{:?}] not yet handled!", id))),
         },
-        "windows" => windows(version),
+        "windows" => os::windows::windows::use_version(version),
         s => Err(Error::msg(s.to_string())),
     }
 }
 
-fn debian(version: String) -> Result<(), Error> {
-    println!("You on Linux Debian, bro");
-
-    println!("/usr/bin/php{}", version);
-
-    let php = Command::new("update-alternatives")
-        .args(&["--set", "php"])
-        .arg(format!("/usr/bin/php{}", version))
-        .output();
-
-    match php {
-        Ok(o) => println!("{:?}", String::from_utf8_lossy(&o.stdout)),
-        Err(err) => return Err(Error::from(err))
-    }
-
-    let phar = Command::new("update-alternatives")
-        .args(&["--set", "phar"])
-        .arg(format!("/usr/bin/phah{}", version))
-        .output();
-
-    match phar {
-        Ok(o) => println!("{:?}", String::from_utf8_lossy(&o.stdout)),
-        Err(err) => return Err(Error::from(err))
-    }
-
-    let phar_phar = Command::new("update-alternatives")
-        .args(&["--set", "phar.phar"])
-        .arg(format!("/usr/bin/phar.phar{}", version))
-        .output();
-
-    match phar_phar {
-        Ok(o) => println!("{:?}", String::from_utf8_lossy(&o.stdout)),
-        Err(err) => return Err(Error::from(err))
-    }
-
-    let phpize = Command::new("update-alternatives")
-        .args(&["--set", "phpize"])
-        .arg(format!("/usr/bin/phpize{}", version))
-        .output();
-
-    match phpize {
-        Ok(o) => println!("{:?}", String::from_utf8_lossy(&o.stdout)),
-        Err(err) => return Err(Error::from(err))
-    }
-
-    let php_config = Command::new("update-alternatives")
-        .args(&["--set", "php-config"])
-        .arg(format!("/usr/bin/php-config{}", version))
-        .output();
-
-    match php_config {
-        Ok(o) => println!("{:?}", String::from_utf8_lossy(&o.stdout)),
-        Err(err) => return Err(Error::from(err))
-    }
-
-    Ok(())
-}
-
-
-fn windows(version: String) -> Result<(), Error> {
-    println!("You on Windows, bro");
-
-    Err(Error::msg("Exitting!"))
-}
